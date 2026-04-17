@@ -1,0 +1,137 @@
+{
+	"name": "df_enrich_orders",
+	"properties": {
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "customers_dataset",
+						"type": "DatasetReference"
+					},
+					"name": "source1customers"
+				},
+				{
+					"dataset": {
+						"referenceName": "orders_dataset",
+						"type": "DatasetReference"
+					},
+					"name": "source2orders"
+				},
+				{
+					"dataset": {
+						"referenceName": "products_dataset",
+						"type": "DatasetReference"
+					},
+					"name": "source3products"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "fact_orders_dataset",
+						"type": "DatasetReference"
+					},
+					"name": "sink1"
+				}
+			],
+			"transformations": [
+				{
+					"name": "join1"
+				},
+				{
+					"name": "join2"
+				},
+				{
+					"name": "derivedColumn1"
+				},
+				{
+					"name": "intColCustomers"
+				},
+				{
+					"name": "intColOrders"
+				},
+				{
+					"name": "intColProducts"
+				},
+				{
+					"name": "select1"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          customer_id as string,",
+				"          customer_name as string,",
+				"          email as string,",
+				"          age as string,",
+				"          city as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     inferDriftedColumnTypes: true,",
+				"     ignoreNoFilesFound: false) ~> source1customers",
+				"source(output(",
+				"          order_id as string,",
+				"          customer_id as string,",
+				"          product_id as string,",
+				"          quantity as string,",
+				"          order_date as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     inferDriftedColumnTypes: true,",
+				"     ignoreNoFilesFound: false) ~> source2orders",
+				"source(output(",
+				"          product_id as string,",
+				"          product_name as string,",
+				"          category as string,",
+				"          price as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     ignoreNoFilesFound: false) ~> source3products",
+				"intColCustomers, intColOrders join(intColCustomers@customer_id == intColOrders@customer_id,",
+				"     joinType:'inner',",
+				"     matchType:'exact',",
+				"     ignoreSpaces: false,",
+				"     broadcast: 'auto')~> join1",
+				"join1, intColProducts join(intColOrders@product_id == intColProducts@product_id,",
+				"     joinType:'inner',",
+				"     matchType:'exact',",
+				"     ignoreSpaces: false,",
+				"     broadcast: 'auto')~> join2",
+				"join2 derive(total_amount = price * quantity) ~> derivedColumn1",
+				"source1customers derive(age = toInteger(age),",
+				"          customer_id = toInteger(customer_id)) ~> intColCustomers",
+				"source2orders derive(quantity = toInteger(quantity),",
+				"          customer_id = toInteger(customer_id),",
+				"          product_id = toInteger(product_id)) ~> intColOrders",
+				"source3products derive(price = toInteger(price),",
+				"          product_id = toInteger(product_id)) ~> intColProducts",
+				"derivedColumn1 select(mapColumn(",
+				"          customer_id = intColCustomers@customer_id,",
+				"          customer_name,",
+				"          email,",
+				"          age,",
+				"          city,",
+				"          order_id,",
+				"          quantity,",
+				"          order_date,",
+				"          product_id = intColProducts@product_id,",
+				"          product_name,",
+				"          category,",
+				"          price,",
+				"          total_amount",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> select1",
+				"select1 sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     partitionFileNames:['fact_orders'],",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     partitionBy('hash', 1)) ~> sink1"
+			]
+		}
+	}
+}
